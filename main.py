@@ -24,10 +24,11 @@ from Crypto.Cipher import ChaCha20
 from struct import pack
 from Crypto.Random import get_random_bytes
 
-def read_file_in_chunks(file_path, buf, chunk_size=16 * 1024):
+def read_file_in_chunks(file_path, buf, chunk_size=128 * 1024):
     with open(file_path, "rb") as file:
+        buffered_reader = io.BufferedReader(file)
         while True:
-            len = file.readinto(buf)
+            len = buffered_reader.readinto(buf)
             if len == 0:
                 break
             yield len
