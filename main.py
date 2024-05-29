@@ -1094,8 +1094,6 @@ def pyflocker_encrypt_file_locker(path_in, path_out):
 
     deltas = []
     for _ in range(3):
-        silentremove(path_out + ".pyflk")
-
         a = datetime.datetime.now()
         locker.lockerf(
             open(path_in, "rb"),
@@ -1120,15 +1118,15 @@ def pyflocker_encrypt_file_chunks(path_in, path_out):
 
     key = os.urandom(32)
 
-    ciphertext = bytearray(chunk_len + 1024)
+    ciphertext = bytearray(chunk_len + 28)
 
     deltas = []
     for _ in range(3):
-        silentremove("/home/gnome/tmp/test.enc")
+        silentremove(path_out)
 
         a = datetime.datetime.now()
 
-        with open("/home/gnome/tmp/test.enc", "wb", buffering=chunk_len) as file_out:
+        with open(path_out, "wb", buffering=chunk_len + 28) as file_out:
             for plaintext in read_file_in_chunks(path_in, buf_len=chunk_len):
                 nonce = os.urandom(16)
                 cipher = AES.new(
@@ -1238,6 +1236,101 @@ def pyflocker_decrypt(block_len):
 
     average = sum(deltas, 0) / len(deltas)
     print(f"| {block_len/1024/1024} | {average:.5f} |")
+
+
+def pyflocker_decrypt_file_locker(path_in, path_out):
+    password = b"my-super-secret-password"
+    tmp = "/home/gnome/tmp/test.dec"
+
+    locker.lockerf(
+        open(path_in, "rb"),
+        open(path_out, "wb"),
+        password,
+        encrypting=True,
+        aes_mode=AES.MODE_GCM,
+    )
+
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        locker.lockerf(
+            open(path_out, "rb"),
+            open(tmp, "wb"),
+            password,
+            encrypting=False,
+            aes_mode=AES.MODE_GCM,
+        )
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    silentremove(path_out)
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {average:.5f} |")
+
+
+def pyflocker_decrypt_file_chunks(path_in, path_out):
+    chunk_len = 2 * 1024 * 1024
+
+    key = os.urandom(32)
+
+    ciphertext = bytearray(chunk_len + 28)
+
+    tmp = "/home/gnome/tmp/test.dec"
+
+    silentremove(path_out)
+    with open(path_out, "wb", buffering=chunk_len + 28) as file_out:
+        for plaintext in read_file_in_chunks(path_in, buf_len=chunk_len):
+            nonce = os.urandom(16)
+            cipher = AES.new(
+                True,
+                key,
+                AES.MODE_GCM,
+                nonce,
+                backend=Backends.CRYPTOGRAPHY,
+            )
+            cipher.update_into(plaintext, ciphertext)
+            cipher.finalize()
+            tag = cipher.calculate_tag()
+            file_out.write(ciphertext)
+            file_out.write(tag)
+            file_out.write(nonce)
+        file_out.flush()
+
+    plaintext = bytearray(chunk_len + 1024)
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        with open(tmp, "wb", buffering=chunk_len) as file_out:
+            for ciphertext in read_file_in_chunks(path_in, buf_len=chunk_len + 28):
+                tag = ciphertext[-28:-12]
+                nonce = ciphertext[-16:]
+                cipher = AES.new(
+                    False,
+                    key,
+                    AES.MODE_GCM,
+                    nonce,
+                    backend=Backends.CRYPTOGRAPHY,
+                )
+                cipher.update_into(ciphertext, plaintext)
+                # cipher.finalize(tag)
+                file_out.write(plaintext)
+            file_out.flush()
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    compare_files_by_hash(path_in, tmp)
+    silentremove(path_out)
+    silentremove(tmp)
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {average:.5f} |")
 
 
 def cryptography_encrypt(block_len):
@@ -1376,13 +1469,6 @@ def cryptography_encrypt(block_len):
 
 # path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # path_out = "/home/gnome/tmp/test.enc"
-# print("\n pyflocker_encrypt_file")
-# print("| Seconds |")
-# print("| ------- |")
-# pyflocker_encrypt_file(path_in, path_out)
-
-# path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-# path_out = "/home/gnome/tmp/test.enc"
 # print("\n pyflocker_encrypt_file_locker")
 # print("| Seconds |")
 # print("| ------- |")
@@ -1391,49 +1477,63 @@ def cryptography_encrypt(block_len):
 # path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # path_out = "/home/gnome/tmp/test.enc"
 # print("\n pyflocker_encrypt_file_chunks")
-# print("| MB    | Seconds |")
-# print("| ----- | ------- |")
+# print("| Seconds |")
+# print("| ------- |")
 # pyflocker_encrypt_file_chunks(path_in, path_out)
 
-print("\n pyflocker_decrypt_into")
-print("| MB    | Seconds |")
-print("| ----- | ------- |")
-pyflocker_decrypt_into(32 * 1024)
-pyflocker_decrypt_into(64 * 1024)
-pyflocker_decrypt_into(128 * 1024)
-pyflocker_decrypt_into(256 * 1024)
-pyflocker_decrypt_into(512 * 1024)
-pyflocker_decrypt_into(1024 * 1024)
-pyflocker_decrypt_into(2 * 1024 * 1024)
-pyflocker_decrypt_into(4 * 1024 * 1024)
-pyflocker_decrypt_into(8 * 1024 * 1024)
-pyflocker_decrypt_into(16 * 1024 * 1024)
-pyflocker_decrypt_into(32 * 1024 * 1024)
-pyflocker_decrypt_into(64 * 1024 * 1024)
-pyflocker_decrypt_into(128 * 1024 * 1024)
-pyflocker_decrypt_into(256 * 1024 * 1024)
-pyflocker_decrypt_into(512 * 1024 * 1024)
-pyflocker_decrypt_into(1024 * 1024 * 1024)
+# print("\n pyflocker_decrypt_into")
+# print("| MB    | Seconds |")
+# print("| ----- | ------- |")
+# pyflocker_decrypt_into(32 * 1024)
+# pyflocker_decrypt_into(64 * 1024)
+# pyflocker_decrypt_into(128 * 1024)
+# pyflocker_decrypt_into(256 * 1024)
+# pyflocker_decrypt_into(512 * 1024)
+# pyflocker_decrypt_into(1024 * 1024)
+# pyflocker_decrypt_into(2 * 1024 * 1024)
+# pyflocker_decrypt_into(4 * 1024 * 1024)
+# pyflocker_decrypt_into(8 * 1024 * 1024)
+# pyflocker_decrypt_into(16 * 1024 * 1024)
+# pyflocker_decrypt_into(32 * 1024 * 1024)
+# pyflocker_decrypt_into(64 * 1024 * 1024)
+# pyflocker_decrypt_into(128 * 1024 * 1024)
+# pyflocker_decrypt_into(256 * 1024 * 1024)
+# pyflocker_decrypt_into(512 * 1024 * 1024)
+# pyflocker_decrypt_into(1024 * 1024 * 1024)
 
-print("\n pyflocker_decrypt")
-print("| MB    | Seconds |")
-print("| ----- | ------- |")
-pyflocker_decrypt(32 * 1024)
-pyflocker_decrypt(64 * 1024)
-pyflocker_decrypt(128 * 1024)
-pyflocker_decrypt(256 * 1024)
-pyflocker_decrypt(512 * 1024)
-pyflocker_decrypt(1024 * 1024)
-pyflocker_decrypt(2 * 1024 * 1024)
-pyflocker_decrypt(4 * 1024 * 1024)
-pyflocker_decrypt(8 * 1024 * 1024)
-pyflocker_decrypt(16 * 1024 * 1024)
-pyflocker_decrypt(32 * 1024 * 1024)
-pyflocker_decrypt(64 * 1024 * 1024)
-pyflocker_decrypt(128 * 1024 * 1024)
-pyflocker_decrypt(256 * 1024 * 1024)
-pyflocker_decrypt(512 * 1024 * 1024)
-pyflocker_decrypt(1024 * 1024 * 1024)
+# print("\n pyflocker_decrypt")
+# print("| MB    | Seconds |")
+# print("| ----- | ------- |")
+# pyflocker_decrypt(32 * 1024)
+# pyflocker_decrypt(64 * 1024)
+# pyflocker_decrypt(128 * 1024)
+# pyflocker_decrypt(256 * 1024)
+# pyflocker_decrypt(512 * 1024)
+# pyflocker_decrypt(1024 * 1024)
+# pyflocker_decrypt(2 * 1024 * 1024)
+# pyflocker_decrypt(4 * 1024 * 1024)
+# pyflocker_decrypt(8 * 1024 * 1024)
+# pyflocker_decrypt(16 * 1024 * 1024)
+# pyflocker_decrypt(32 * 1024 * 1024)
+# pyflocker_decrypt(64 * 1024 * 1024)
+# pyflocker_decrypt(128 * 1024 * 1024)
+# pyflocker_decrypt(256 * 1024 * 1024)
+# pyflocker_decrypt(512 * 1024 * 1024)
+# pyflocker_decrypt(1024 * 1024 * 1024)
+
+# path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# path_out = "/home/gnome/tmp/test.enc"
+# print("\n pyflocker_decrypt_file_locker")
+# print("| Seconds |")
+# print("| ------- |")
+# pyflocker_decrypt_file_locker(path_in, path_out)
+
+path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+path_out = "/home/gnome/tmp/test.enc"
+print("\n pyflocker_decrypt_file_chunks")
+print("| Seconds |")
+print("| ------- |")
+pyflocker_decrypt_file_chunks(path_in, path_out)
 
 # print("\n cryptography_encrypt")
 # print("| MB    | Seconds |")
