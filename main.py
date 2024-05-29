@@ -2,6 +2,7 @@ import errno
 import datetime
 import os
 import io
+import shutil
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
@@ -24,14 +25,16 @@ from Crypto.Cipher import ChaCha20
 from struct import pack
 from Crypto.Random import get_random_bytes
 
-def read_file_in_chunks(file_path, buf, chunk_size=128 * 1024):
-    with open(file_path, "rb") as file:
-        buffered_reader = io.BufferedReader(file)
+
+def read_file_in_chunks(file_path, buf_size=128 * 1024):
+    with open(file_path, "rb", buffering=buf_size) as file:
+        # buffered_reader = io.BufferedReader(file, buffer_size=buf.__len__())
         while True:
-            len = buffered_reader.readinto(buf)
-            if len == 0:
+            buf = file.read(buf_size)
+            if buf.__len__() == 0:
                 break
-            yield len
+            yield buf
+
 
 def silentremove(filename):
     try:
@@ -108,9 +111,9 @@ def cryptography_chacha20poly1305(path_in):
     nonce = os.urandom(12)
 
     deltas = []
-    for _ in range(42):
+    for _ in range(3):
         a = datetime.datetime.now()
-        
+
         silentremove("/tmp/test.enc")
         buf = bytearray(128 * 1024)
         with open("/tmp/test.enc", "wb") as file_out:
@@ -119,7 +122,7 @@ def cryptography_chacha20poly1305(path_in):
                 ciphertext = chacha.encrypt(nonce, buf[:read], aad)
                 buffered_writer.write(ciphertext[:read])
             buffered_writer.flush()
-                
+
         b = datetime.datetime.now()
         delta = b - a
         deltas.append(delta.total_seconds())
@@ -162,9 +165,8 @@ def cryptography_aesgcm(path_in):
     nonce = os.urandom(12)
 
     deltas = []
-    for _ in range(42):
+    for _ in range(3):
         a = datetime.datetime.now()
-
 
         silentremove("/tmp/test.enc")
         buf = bytearray(128 * 1024)
@@ -226,7 +228,7 @@ def cryptography_cast5(path_in):
         original = file.read()
 
     # encrypting the file
-    ciphertext = encryptor.update(original)
+    ciphertext = eupdate_intoncryptor.update(original)
 
     # opening the file in write mode and
     # writing the ciphertext data
@@ -246,7 +248,7 @@ def cryptography_cast5(path_in):
 
     # decrypting the file
     decryptor = cipher.decryptor()
-    plaintext = decryptor.update(ciphertext)
+    plaintext = deupdate_intocryptor.update(ciphertext)
 
     # opening the file in write mode and
     # writing the plaintext data
@@ -758,19 +760,19 @@ def pycryptodome_salsa20(path_in):
     silentremove("/tmp/test.dec")
 
 
-def pyflocker_cryptography_aes(path_in):
+def pyflocker_cryptography_aesgcm(path_in):
     from pyflocker import ciphers
     from pyflocker.ciphers import OAEP
     from pyflocker.ciphers import AES
     from pyflocker.ciphers import RSA
     from pyflocker.ciphers.backends import Backends
 
-    print("pyflocker cryptography aes")
+    print("pyflocker cryptography aesgcm")
 
     key, nonce = os.urandom(32), os.urandom(16)
 
     deltas = []
-    for _ in range(42):
+    for _ in range(3):
         enc = AES.new(
             True,
             key,
@@ -780,14 +782,13 @@ def pyflocker_cryptography_aes(path_in):
         )
 
         a = datetime.datetime.now()
-        
+
         silentremove("/tmp/test.enc")
-        buf = bytearray(128 * 1024)
         with open("/tmp/test.enc", "wb") as file_out:
             buffered_writer = io.BufferedWriter(file_out)
-            for read in read_file_in_chunks(path_in, buf, chunk_size=buf.__len__()):
-                ciphertext = enc.update(buf[:read])
-                buffered_writer.write(ciphertext[:read])
+            for buf in read_file_in_chunks(path_in, update_intochunk_size=128 * 1024):
+                ciphertext = enc.update(buf)
+                buffered_writer.write(ciphertext)
             enc.finalize()
             buffered_writer.flush()
 
@@ -834,7 +835,7 @@ def pyflocker_cryptography_chacha20(path_in):
         "/tmp/test.enc",
         "wb",
     ) as file:
-        file.write(enc.update(original))
+        file.writeupdate_into(enc.update(original))
     enc.finalize()
 
     # enc.update_into(f2)
@@ -881,7 +882,7 @@ def pyflocker_cryptomode_aes(path_in):
         "/tmp/test.enc",
         "wb",
     ) as file:
-        file.write(enc.update(original))
+        file.writeupdate_into(enc.update(original))
     enc.finalize()
 
     # enc.update_into(f2)
@@ -927,7 +928,7 @@ def pyflocker_cryptomode_chacha20(path_in):
         "/tmp/test.enc",
         "wb",
     ) as file:
-        file.write(enc.update(original))
+        file.writeupdate_into(enc.update(original))
     enc.finalize()
 
     # enc.update_into(f2)
@@ -974,7 +975,7 @@ def pyflocker_cryptography_rsa(path_in):
     a = datetime.datetime.now()
 
     with open(path_in, "rb") as file:
-        ciphertext = cipher_aes.update(file.read())
+        ciphertextupdate_into = cipher_aes.update(file.read())
 
     # Calculate the cipher tag
     cipher_aes.finalize()
@@ -1020,7 +1021,7 @@ def pyflocker_cryptography_rsa(path_in):
         use_hmac=True,
     )
 
-    # Decrypt the ciphertext and verify the decryption.
+    # Decrypt the ciphertext and verify the deupdate_intocryption.
     plaintext = cipher_aes.update(ciphertext)
     cipher_aes.finalize(tag)
 
@@ -1032,17 +1033,102 @@ def pyflocker_cryptography_rsa(path_in):
     silentremove("/tmp/test.dec")
 
 
+def encrypt(chunk_size):
+    from pyflocker.ciphers import AES
+    from pyflocker.ciphers.backends import Backends
+
+    key = os.urandom(32)
+
+    buf = bytearray(chunk_size)
+    buf2 = bytearray(chunk_size + 1024)
+
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        nonce = os.urandom(16)
+        enc = AES.new(
+            True,
+            key,
+            AES.MODE_GCM,
+            nonce,
+            backend=Backends.CRYPTOGRAPHY,
+        )
+        enc.update_into(buf, buf2)
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+        
+    average = sum(deltas, 0) / len(deltas)
+    print(f"|{chunk_size/1024/1024} | {average:.5f}|")
+
+
+def encrypt_file(path_in, chunk_size):
+    from pyflocker.ciphers import AES
+    from pyflocker.ciphers.backends import Backends
+
+    key = os.urandom(32)
+
+    buf = bytearray(chunk_size + 1024)
+    buf2 = bytes(bytearray(chunk_size))
+
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        nonce = os.urandom(16)
+        enc = AES.new(
+            True,
+            key,
+            AES.MODE_GCM,
+            nonce,
+            backend=Backends.CRYPTOGRAPHY,
+        )
+        silentremove("/tmp/test.enc")
+        with open("/tmp/test.enc", "wb", buffering=chunk_size) as file_out:
+            for buf2 in read_file_in_chunks(path_in, buf_size=chunk_size):
+                enc.update_into(buf2, buf)
+                file_out.write(buf)
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+    silentremove("/tmp/test.enc")
+    
+    average = sum(deltas, 0) / len(deltas)
+    print(f"|{chunk_size/1024/1024} | {average:.5f}|")
+
+
+def copy_file(path_in):
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        silentremove("/tmp/test.enc")
+        shutil.copy(path_in, "/tmp/test.enc")
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+    
+    silentremove("/tmp/test.enc")
+    
+    average = sum(deltas, 0) / len(deltas)
+    print(f"|{average:.5f}|")
+
+
 # cryptography_fernet(
 #     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
-print()
-cryptography_chacha20poly1305(
-    "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-)
-print()
-cryptography_aesgcm(
-    "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-)
+# print()
+# cryptography_chacha20poly1305(
+#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# )
+# print()
+# cryptography_aesgcm(
+#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# )
 # print()
 # cryptography_aesgcmsiv(
 #     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
@@ -1083,10 +1169,10 @@ cryptography_aesgcm(
 # pycryptodome_salsa20(
 #     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
-print()
-pyflocker_cryptography_aes(
-    "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-)
+# print()
+# pyflocker_cryptography_aesgcm(
+#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# )
 # print()
 # pyflocker_cryptography_chacha20(
 #     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
@@ -1103,3 +1189,51 @@ pyflocker_cryptography_aes(
 # pyflocker_cryptography_rsa(
 #     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
+
+# print("| MB    | Seconds |")
+# print("| -------- | ------- |")
+# encrypt(32 * 1024)
+# encrypt(64 * 1024)
+# encrypt(128 * 1024)
+# encrypt(256 * 1024)
+# encrypt(512 * 1024)
+# encrypt(1024 * 1024)
+# encrypt(2 * 1024 * 1024)
+# encrypt(4 * 1024 * 1024)
+# encrypt(8 * 1024 * 1024)
+# encrypt(16 * 1024 * 1024)
+# encrypt(32 * 1024 * 1024)
+# encrypt(64 * 1024 * 1024)
+# encrypt(128 * 1024 * 1024)
+# encrypt(256 * 1024 * 1024)
+# encrypt(512 * 1024 * 1024)
+# encrypt(1024 * 1024 * 1024)
+# encrypt(2 * 1024 * 1024 * 1024)
+# encrypt(4 * 1024 * 1024 * 1024)
+# encrypt(8 * 1024 * 1024 * 1024)
+
+path_in = "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+print()
+print("| MB    | Seconds |")
+print("| -------- | ------- |")
+encrypt_file(path_in, 32 * 1024)
+encrypt_file(path_in, 64 * 1024)
+encrypt_file(path_in, 128 * 1024)
+encrypt_file(path_in, 256 * 1024)
+encrypt_file(path_in, 512 * 1024)
+encrypt_file(path_in, 1024 * 1024)
+encrypt_file(path_in, 2 * 1024 * 1024)
+encrypt_file(path_in, 4 * 1024 * 1024)
+encrypt_file(path_in, 8 * 1024 * 1024)
+encrypt_file(path_in, 16 * 1024 * 1024)
+encrypt_file(path_in, 32 * 1024 * 1024)
+encrypt_file(path_in, 64 * 1024 * 1024)
+encrypt_file(path_in, 128 * 1024 * 1024)
+encrypt_file(path_in, 256 * 1024 * 1024)
+encrypt_file(path_in, 512 * 1024 * 1024)
+encrypt_file(path_in, 1024 * 1024 * 1024)
+
+# path_in = "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# print("| Seconds |")
+# print("| ------- |")
+# copy_file(path_in)
