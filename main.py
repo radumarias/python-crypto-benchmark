@@ -3,6 +3,7 @@ import datetime
 import os
 import io
 import shutil
+import hashlib
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
@@ -18,19 +19,39 @@ import nacl.secret
 import nacl.utils
 from nacl.public import PrivateKey, Box
 import pyAesCrypt
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES as CryptoAES
 from Crypto.Cipher import ChaCha20_Poly1305
 from Crypto.Cipher import Salsa20
 from Crypto.Cipher import ChaCha20
 from struct import pack
 from Crypto.Random import get_random_bytes
 
+from pyflocker import ciphers
+from pyflocker.ciphers import AES
+from pyflocker.ciphers.backends import Backends
+from pyflocker.ciphers import OAEP
+from pyflocker.ciphers import AES
+from pyflocker.ciphers import ChaCha20
+from pyflocker.ciphers import RSA
+from pyflocker import locker
 
-def read_file_in_chunks(file_path, buf_size=128 * 1024):
-    with open(file_path, "rb", buffering=buf_size) as file:
-        # buffered_reader = io.BufferedReader(file, buffer_size=buf.__len__())
+
+def calculate_file_hash(file_path):
+    hash_algo = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_algo.update(chunk)
+    return hash_algo.hexdigest()
+
+
+def compare_files_by_hash(file1, file2):
+    return calculate_file_hash(file1) == calculate_file_hash(file2)
+
+
+def read_file_in_chunks(file_path, buf_len=128 * 1024):
+    with open(file_path, "rb", buffering=buf_len) as file:
         while True:
-            buf = file.read(buf_size)
+            buf = file.read(buf_len)
             if buf.__len__() == 0:
                 break
             yield buf
@@ -67,8 +88,8 @@ def cryptography_fernet(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -78,7 +99,7 @@ def cryptography_fernet(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -94,7 +115,7 @@ def cryptography_fernet(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -114,9 +135,9 @@ def cryptography_chacha20poly1305(path_in):
     for _ in range(3):
         a = datetime.datetime.now()
 
-        silentremove("/tmp/test.enc")
+        silentremove("/home/gnome/tmp/test.enc")
         buf = bytearray(128 * 1024)
-        with open("/tmp/test.enc", "wb") as file_out:
+        with open("/home/gnome/tmp/test.enc", "wb") as file_out:
             buffered_writer = io.BufferedWriter(file_out)
             for read in read_file_in_chunks(path_in, buf, chunk_size=buf.__len__()):
                 ciphertext = chacha.encrypt(nonce, buf[:read], aad)
@@ -132,7 +153,7 @@ def cryptography_chacha20poly1305(path_in):
     # a = datetime.datetime.now()
 
     # # opening the ciphertext file
-    # with open("/tmp/test.enc", "rb") as enc_file:
+    # with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
     #     ciphertext = enc_file.read()
 
     # # decrypting the file
@@ -148,7 +169,7 @@ def cryptography_chacha20poly1305(path_in):
     # delta = b - a
     # print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -168,9 +189,9 @@ def cryptography_aesgcm(path_in):
     for _ in range(3):
         a = datetime.datetime.now()
 
-        silentremove("/tmp/test.enc")
+        silentremove("/home/gnome/tmp/test.enc")
         buf = bytearray(128 * 1024)
-        with open("/tmp/test.enc", "wb") as file_out:
+        with open("/home/gnome/tmp/test.enc", "wb") as file_out:
             buffered_writer = io.BufferedWriter(file_out)
             for read in read_file_in_chunks(path_in, buf, chunk_size=buf.__len__()):
                 ciphertext = aesgcm.encrypt(nonce, buf[:read], aad)
@@ -187,7 +208,7 @@ def cryptography_aesgcm(path_in):
     # a = datetime.datetime.now()
 
     # # opening the ciphertext file
-    # with open("/tmp/test.enc", "rb") as enc_file:
+    # with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
     #     ciphertext = enc_file.read()
 
     # # decrypting the file
@@ -203,7 +224,7 @@ def cryptography_aesgcm(path_in):
     # delta = b - a
     # print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -232,8 +253,8 @@ def cryptography_cast5(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -243,7 +264,7 @@ def cryptography_cast5(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -260,7 +281,7 @@ def cryptography_cast5(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -290,8 +311,8 @@ def cryptography_aesgcmsiv(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -301,7 +322,7 @@ def cryptography_aesgcmsiv(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -317,7 +338,7 @@ def cryptography_aesgcmsiv(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -339,7 +360,7 @@ def cryptography_aesgcmsiv(path_in):
 #     ) as file:
 #         original = file.read()
 
-#     with open("/tmp/test.enc", "wb") as enc_file:
+#     with open("/home/gnome/tmp/test.enc", "wb") as enc_file:
 #         for chunk in funcy.chunks(128, original):
 #             ciphertext = public_key.encrypt(
 #                 chunk,
@@ -358,7 +379,7 @@ def cryptography_aesgcmsiv(path_in):
 #     a = datetime.datetime.now()
 
 #     # opening the ciphertext file
-#     with open("/tmp/test.enc", "rb") as enc_file:
+#     with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
 #         ciphertext = enc_file.read()
 
 #     # decrypting the file
@@ -381,7 +402,7 @@ def cryptography_aesgcmsiv(path_in):
 #     delta = b - a
 #     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-#     silentremove("/tmp/test.enc")
+#     silentremove("/home/gnome/tmp/test.enc")
 #     silentremove("/tmp/test.dec")
 
 
@@ -408,8 +429,8 @@ def libsodium_salsa20(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -419,7 +440,7 @@ def libsodium_salsa20(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -435,7 +456,7 @@ def libsodium_salsa20(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -468,8 +489,8 @@ def libsodium_pubkey(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -479,7 +500,7 @@ def libsodium_pubkey(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -496,7 +517,7 @@ def libsodium_pubkey(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -508,10 +529,10 @@ def pyaes(path_in):
 
     a = datetime.datetime.now()
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
 
     # encrypting the file
-    pyAesCrypt.encryptFile(path_in, "/tmp/test.enc", password)
+    pyAesCrypt.encryptFile(path_in, "/home/gnome/tmp/test.enc", password)
 
     b = datetime.datetime.now()
     delta = b - a
@@ -520,13 +541,13 @@ def pyaes(path_in):
     a = datetime.datetime.now()
 
     # decrypting the file
-    pyAesCrypt.decryptFile("/tmp/test.enc", "/tmp/test.dec", password)
+    pyAesCrypt.decryptFile("/home/gnome/tmp/test.enc", "/tmp/test.dec", password)
 
     b = datetime.datetime.now()
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -536,7 +557,7 @@ def pycryptodome_aes(path_in):
     # key generation
     key = get_random_bytes(32)
 
-    cipher = AES.new(key, AES.MODE_GCM)
+    cipher = CryptoAES.new(key, CryptoAES.MODE_GCM)
 
     a = datetime.datetime.now()
 
@@ -554,8 +575,8 @@ def pycryptodome_aes(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -565,11 +586,11 @@ def pycryptodome_aes(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
-    cipher = AES.new(key, AES.MODE_GCM, nonce)
+    cipher = CryptoAES.new(key, CryptoAES.MODE_GCM, nonce)
     plaintext = cipher.decrypt_and_verify(ciphertext, tag)
 
     # opening the file in write mode and
@@ -582,7 +603,7 @@ def pycryptodome_aes(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -612,8 +633,8 @@ def pycryptodome_chacha20poly1305(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -623,7 +644,7 @@ def pycryptodome_chacha20poly1305(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -640,7 +661,7 @@ def pycryptodome_chacha20poly1305(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -670,8 +691,8 @@ def pycryptodome_chacha20(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -681,7 +702,7 @@ def pycryptodome_chacha20(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -698,7 +719,7 @@ def pycryptodome_chacha20(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
@@ -728,8 +749,8 @@ def pycryptodome_salsa20(path_in):
 
     # opening the file in write mode and
     # writing the ciphertext data
-    silentremove("/tmp/test.enc")
-    with open("/tmp/test.enc", "wb") as ciphertext_file:
+    silentremove("/home/gnome/tmp/test.enc")
+    with open("/home/gnome/tmp/test.enc", "wb") as ciphertext_file:
         ciphertext_file.write(ciphertext)
 
     b = datetime.datetime.now()
@@ -739,7 +760,7 @@ def pycryptodome_salsa20(path_in):
     a = datetime.datetime.now()
 
     # opening the ciphertext file
-    with open("/tmp/test.enc", "rb") as enc_file:
+    with open("/home/gnome/tmp/test.enc", "rb") as enc_file:
         ciphertext = enc_file.read()
 
     # decrypting the file
@@ -756,17 +777,11 @@ def pycryptodome_salsa20(path_in):
     delta = b - a
     print("decrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
 def pyflocker_cryptography_aesgcm(path_in):
-    from pyflocker import ciphers
-    from pyflocker.ciphers import OAEP
-    from pyflocker.ciphers import AES
-    from pyflocker.ciphers import RSA
-    from pyflocker.ciphers.backends import Backends
-
     print("pyflocker cryptography aesgcm")
 
     key, nonce = os.urandom(32), os.urandom(16)
@@ -783,8 +798,8 @@ def pyflocker_cryptography_aesgcm(path_in):
 
         a = datetime.datetime.now()
 
-        silentremove("/tmp/test.enc")
-        with open("/tmp/test.enc", "wb") as file_out:
+        silentremove("/home/gnome/tmp/test.enc")
+        with open("/home/gnome/tmp/test.enc", "wb") as file_out:
             buffered_writer = io.BufferedWriter(file_out)
             for buf in read_file_in_chunks(path_in, update_intochunk_size=128 * 1024):
                 ciphertext = enc.update(buf)
@@ -799,17 +814,11 @@ def pyflocker_cryptography_aesgcm(path_in):
     average = sum(deltas, 0) / len(deltas)
     print("encrypt %2d MB/s" % (895 / average))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
 def pyflocker_cryptography_chacha20(path_in):
-    from pyflocker import ciphers
-    from pyflocker.ciphers import OAEP
-    from pyflocker.ciphers import AES
-    from pyflocker.ciphers import RSA
-    from pyflocker.ciphers.backends import Backends
-
     print("pyflocker cryptography chacha20")
 
     key, nonce = os.urandom(32), os.urandom(12)
@@ -827,12 +836,12 @@ def pyflocker_cryptography_chacha20(path_in):
     ) as file:
         original = file.read()
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
 
     a = datetime.datetime.now()
 
     with open(
-        "/tmp/test.enc",
+        "/home/gnome/tmp/test.enc",
         "wb",
     ) as file:
         file.writeupdate_into(enc.update(original))
@@ -845,17 +854,11 @@ def pyflocker_cryptography_chacha20(path_in):
     delta = b - a
     print("encrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
 def pyflocker_cryptomode_aes(path_in):
-    from pyflocker import ciphers
-    from pyflocker.ciphers import OAEP
-    from pyflocker.ciphers import AES
-    from pyflocker.ciphers import RSA
-    from pyflocker.ciphers.backends import Backends
-
     print("pyflocker cryptomode aes")
 
     key, nonce = os.urandom(32), os.urandom(16)
@@ -874,12 +877,12 @@ def pyflocker_cryptomode_aes(path_in):
     ) as file:
         original = file.read()
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
 
     a = datetime.datetime.now()
 
     with open(
-        "/tmp/test.enc",
+        "/home/gnome/tmp/test.enc",
         "wb",
     ) as file:
         file.writeupdate_into(enc.update(original))
@@ -892,17 +895,11 @@ def pyflocker_cryptomode_aes(path_in):
     delta = b - a
     print("encrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
 def pyflocker_cryptomode_chacha20(path_in):
-    from pyflocker import ciphers
-    from pyflocker.ciphers import OAEP
-    from pyflocker.ciphers import AES
-    from pyflocker.ciphers import RSA
-    from pyflocker.ciphers.backends import Backends
-
     print("pyflocker cryptomode chacha20")
 
     key, nonce = os.urandom(32), os.urandom(12)
@@ -920,12 +917,12 @@ def pyflocker_cryptomode_chacha20(path_in):
     ) as file:
         original = file.read()
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
 
     a = datetime.datetime.now()
 
     with open(
-        "/tmp/test.enc",
+        "/home/gnome/tmp/test.enc",
         "wb",
     ) as file:
         file.writeupdate_into(enc.update(original))
@@ -938,17 +935,11 @@ def pyflocker_cryptomode_chacha20(path_in):
     delta = b - a
     print("encrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
 
 
 def pyflocker_cryptography_rsa(path_in):
-    from pyflocker import ciphers
-    from pyflocker.ciphers import OAEP
-    from pyflocker.ciphers import AES
-    from pyflocker.ciphers import RSA
-    from pyflocker.ciphers.backends import Backends
-
     print("pyflocker cryptography rsa")
 
     # Step 1: Generate RSA keys
@@ -981,7 +972,7 @@ def pyflocker_cryptography_rsa(path_in):
     cipher_aes.finalize()
     tag = cipher_aes.calculate_tag()
 
-    with open("/tmp/test.enc", "wb") as file:
+    with open("/home/gnome/tmp/test.enc", "wb") as file:
         file.write(
             b"".join(
                 (
@@ -1001,7 +992,7 @@ def pyflocker_cryptography_rsa(path_in):
     a = datetime.datetime.now()
 
     # Read the encrypted file and separate the parts.
-    with open("/tmp/test.enc", "rb") as file:
+    with open("/home/gnome/tmp/test.enc", "rb") as file:
         (
             enc_session_key,
             nonce,
@@ -1029,75 +1020,8 @@ def pyflocker_cryptography_rsa(path_in):
     delta = b - a
     print("encrypt %2d MB/s" % (895 / delta.total_seconds()))
 
-    silentremove("/tmp/test.enc")
+    silentremove("/home/gnome/tmp/test.enc")
     silentremove("/tmp/test.dec")
-
-
-def encrypt(block_len):
-    from pyflocker.ciphers import AES
-    from pyflocker.ciphers.backends import Backends
-
-    key = os.urandom(32)
-
-    buf = os.urandom(block_len)
-    buf2 = bytearray(block_len + 1024)
-
-    deltas = []
-    for _ in range(3):
-        a = datetime.datetime.now()
-
-        nonce = os.urandom(16)
-        enc = AES.new(
-            True,
-            key,
-            AES.MODE_GCM,
-            nonce,
-            backend=Backends.CRYPTOGRAPHY,
-        )
-        enc.update_into(buf, buf2)
-
-        b = datetime.datetime.now()
-        delta = b - a
-        deltas.append(delta.total_seconds())
-        
-    average = sum(deltas, 0) / len(deltas)
-    print(f"|{block_len/1024/1024} | {average:.5f}|")
-
-
-def encrypt_file(path_in, chunk_size):
-    from pyflocker.ciphers import AES
-    from pyflocker.ciphers.backends import Backends
-
-    key = os.urandom(32)
-
-    buf = bytearray(chunk_size + 1024)
-    buf2 = bytes(bytearray(chunk_size))
-
-    deltas = []
-    for _ in range(3):
-        a = datetime.datetime.now()
-
-        nonce = os.urandom(16)
-        enc = AES.new(
-            True,
-            key,
-            AES.MODE_GCM,
-            nonce,
-            backend=Backends.CRYPTOGRAPHY,
-        )
-        silentremove("/tmp/test.enc")
-        with open("/tmp/test.enc", "wb", buffering=chunk_size) as file_out:
-            for buf2 in read_file_in_chunks(path_in, buf_size=chunk_size):
-                enc.update_into(buf2, buf)
-                file_out.write(buf)
-
-        b = datetime.datetime.now()
-        delta = b - a
-        deltas.append(delta.total_seconds())
-    silentremove("/tmp/test.enc")
-    
-    average = sum(deltas, 0) / len(deltas)
-    print(f"|{chunk_size/1024/1024} | {average:.5f}|")
 
 
 def copy_file(path_in):
@@ -1105,135 +1029,428 @@ def copy_file(path_in):
     for _ in range(3):
         a = datetime.datetime.now()
 
-        silentremove("/tmp/test.enc")
-        shutil.copy(path_in, "/tmp/test.enc")
+        silentremove("/home/gnome/tmp/test.enc")
+        shutil.copy(path_in, "/home/gnome/tmp/test.enc")
 
         b = datetime.datetime.now()
         delta = b - a
         deltas.append(delta.total_seconds())
-    
-    silentremove("/tmp/test.enc")
-    
+
+    silentremove("/home/gnome/tmp/test.enc")
+
     average = sum(deltas, 0) / len(deltas)
     print(f"|{average:.5f}|")
 
 
+def pyflocker_encrypt_into(block_len):
+    key = os.urandom(32)
+
+    plaintext = os.urandom(block_len)
+    ciphertext = bytearray(block_len + 28)
+
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        nonce = os.urandom(16)
+        cipher = AES.new(True, key, AES.MODE_GCM, nonce, backend=Backends.CRYPTOGRAPHY)
+        cipher.update_into(plaintext, ciphertext)
+        cipher.finalize()
+        cipher.calculate_tag()
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {block_len/1024/1024} | {average:.5f} |")
+
+
+def pyflocker_encrypt(block_len):
+    key = os.urandom(32)
+
+    plaintext = os.urandom(block_len)
+
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        nonce = os.urandom(16)
+        cipher = AES.new(True, key, AES.MODE_GCM, nonce, backend=Backends.CRYPTOGRAPHY)
+        cipher.update(plaintext)
+        cipher.finalize()
+        cipher.calculate_tag()
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {block_len/1024/1024} | {average:.5f} |")
+
+
+def pyflocker_encrypt_file_locker(path_in, path_out):
+    password = b"my-super-secret-password"
+
+    deltas = []
+    for _ in range(3):
+        silentremove(path_out + ".pyflk")
+
+        a = datetime.datetime.now()
+        locker.lockerf(
+            open(path_in, "rb"),
+            open(path_out, "wb"),
+            password,
+            encrypting=True,
+            aes_mode=AES.MODE_GCM,
+        )
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    silentremove(path_out)
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {average:.5f} |")
+
+
+def pyflocker_encrypt_file_chunks(path_in, path_out):
+    chunk_len = 2 * 1024 * 1024
+
+    key = os.urandom(32)
+
+    ciphertext = bytearray(chunk_len + 1024)
+
+    deltas = []
+    for _ in range(3):
+        silentremove("/home/gnome/tmp/test.enc")
+
+        a = datetime.datetime.now()
+
+        with open("/home/gnome/tmp/test.enc", "wb", buffering=chunk_len) as file_out:
+            for plaintext in read_file_in_chunks(path_in, buf_len=chunk_len):
+                nonce = os.urandom(16)
+                cipher = AES.new(
+                    True,
+                    key,
+                    AES.MODE_GCM,
+                    nonce,
+                    backend=Backends.CRYPTOGRAPHY,
+                )
+                cipher.update_into(plaintext, ciphertext)
+                cipher.finalize()
+                tag = cipher.calculate_tag()
+                file_out.write(ciphertext)
+                file_out.write(tag)
+                file_out.write(nonce)
+            file_out.flush()
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    silentremove(path_out)
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {average:.5f} |")
+
+
+def pyflocker_decrypt_into(block_len):
+    key = os.urandom(32)
+
+    plaintext = os.urandom(block_len)
+    ciphertext = bytearray(block_len + 28)
+
+    deltas = []
+    for _ in range(3):
+        nonce = os.urandom(16)
+        cipher = AES.new(
+            True,
+            key,
+            AES.MODE_GCM,
+            nonce,
+            backend=Backends.CRYPTOGRAPHY,
+        )
+        cipher.update_into(plaintext, ciphertext)
+        cipher.finalize()
+        tag = cipher.calculate_tag()
+
+        a = datetime.datetime.now()
+
+        cipher = AES.new(
+            False,
+            key,
+            AES.MODE_GCM,
+            nonce,
+            backend=Backends.CRYPTOGRAPHY,
+        )
+        plaintext2 = bytearray(block_len + 1024)
+        cipher.update_into(ciphertext, plaintext2)
+        # cipher.finalize(tag)
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+        # assert plaintext == plaintext2
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {block_len/1024/1024} | {average:.5f} |")
+
+
+def pyflocker_decrypt(block_len):
+    key = os.urandom(32)
+
+    plaintext = os.urandom(block_len)
+    ciphertext = bytearray(block_len + 28)
+
+    deltas = []
+    for _ in range(3):
+        nonce = os.urandom(16)
+        cipher = AES.new(
+            True,
+            key,
+            AES.MODE_GCM,
+            nonce,
+            backend=Backends.CRYPTOGRAPHY,
+        )
+        cipher.update_into(plaintext, ciphertext)
+        cipher.finalize()
+        tag = cipher.calculate_tag()
+
+        a = datetime.datetime.now()
+
+        cipher = AES.new(
+            False,
+            key,
+            AES.MODE_GCM,
+            nonce,
+            backend=Backends.CRYPTOGRAPHY,
+        )
+        plaintext2 = cipher.update(ciphertext)
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+        # assert plaintext == plaintext2
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {block_len/1024/1024} | {average:.5f} |")
+
+
+def cryptography_encrypt(block_len):
+    aad = b"authenticated but unciphertext data"
+    key = AESGCM.generate_key(256)
+
+    plaintext = os.urandom(block_len)
+
+    deltas = []
+    for _ in range(3):
+        a = datetime.datetime.now()
+
+        cipher = AESGCM(key)
+        nonce = os.urandom(12)
+        cipher.encrypt(nonce, plaintext, aad)
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    average = sum(deltas, 0) / len(deltas)
+    print(f"| {block_len/1024/1024} | {average:.5f} |")
+
+
 # cryptography_fernet(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # cryptography_chacha20poly1305(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # cryptography_aesgcm(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # cryptography_aesgcmsiv(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # cryptography_cast5(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # cryptography_rsa(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # libsodium_salsa20(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # libsodium_pubkey(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pyaes(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pycryptodome_aes(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pycryptodome_chacha20poly1305(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pycryptodome_chacha20(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pycryptodome_salsa20(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pyflocker_cryptography_aesgcm(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pyflocker_cryptography_chacha20(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pyflocker_cryptomode_aes(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pyflocker_cryptomode_chacha20(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 # print()
 # pyflocker_cryptography_rsa(
-#     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+#     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 
-print("| MB    | Seconds |")
-print("| ----- | ------- |")
-encrypt(32 * 1024)
-encrypt(64 * 1024)
-encrypt(128 * 1024)
-encrypt(256 * 1024)
-encrypt(512 * 1024)
-encrypt(1024 * 1024)
-encrypt(2 * 1024 * 1024)
-encrypt(4 * 1024 * 1024)
-encrypt(8 * 1024 * 1024)
-encrypt(16 * 1024 * 1024)
-encrypt(32 * 1024 * 1024)
-encrypt(64 * 1024 * 1024)
-encrypt(128 * 1024 * 1024)
-encrypt(256 * 1024 * 1024)
-encrypt(512 * 1024 * 1024)
-encrypt(1024 * 1024 * 1024)
-encrypt(2 * 1024 * 1024 * 1024)
-encrypt(4 * 1024 * 1024 * 1024)
-encrypt(8 * 1024 * 1024 * 1024)
+# print("pyflocker_encrypt_into")
+# print("| MB    | Seconds |")
+# print("| ----- | ------- |")
+# pyflocker_encrypt_into(32 * 1024)
+# pyflocker_encrypt_into(64 * 1024)
+# pyflocker_encrypt_into(128 * 1024)
+# pyflocker_encrypt_into(256 * 1024)
+# pyflocker_encrypt_into(512 * 1024)
+# pyflocker_encrypt_into(1024 * 1024)
+# pyflocker_encrypt_into(2 * 1024 * 1024)
+# pyflocker_encrypt_into(4 * 1024 * 1024)
+# pyflocker_encrypt_into(8 * 1024 * 1024)
+# pyflocker_encrypt_into(16 * 1024 * 1024)
+# pyflocker_encrypt_into(32 * 1024 * 1024)
+# pyflocker_encrypt_into(64 * 1024 * 1024)
+# pyflocker_encrypt_into(128 * 1024 * 1024)
+# pyflocker_encrypt_into(256 * 1024 * 1024)
+# pyflocker_encrypt_into(512 * 1024 * 1024)
+# pyflocker_encrypt_into(1024 * 1024 * 1024)
 
-path_in = "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-print()
-print("| MB    | Seconds |")
-print("| ----- | ------- |")
-encrypt_file(path_in, 32 * 1024)
-encrypt_file(path_in, 64 * 1024)
-encrypt_file(path_in, 128 * 1024)
-encrypt_file(path_in, 256 * 1024)
-encrypt_file(path_in, 512 * 1024)
-encrypt_file(path_in, 1024 * 1024)
-encrypt_file(path_in, 2 * 1024 * 1024)
-encrypt_file(path_in, 4 * 1024 * 1024)
-encrypt_file(path_in, 8 * 1024 * 1024)
-encrypt_file(path_in, 16 * 1024 * 1024)
-encrypt_file(path_in, 32 * 1024 * 1024)
-encrypt_file(path_in, 64 * 1024 * 1024)
-encrypt_file(path_in, 128 * 1024 * 1024)
-encrypt_file(path_in, 256 * 1024 * 1024)
-encrypt_file(path_in, 512 * 1024 * 1024)
-encrypt_file(path_in, 1024 * 1024 * 1024)
+# print("\n pyflocker_encrypt")
+# print("| MB    | Seconds |")
+# print("| ----- | ------- |")
+# pyflocker_encrypt(32 * 1024)
+# pyflocker_encrypt(64 * 1024)
+# pyflocker_encrypt(128 * 1024)
+# pyflocker_encrypt(256 * 1024)
+# pyflocker_encrypt(512 * 1024)
+# pyflocker_encrypt(1024 * 1024)
+# pyflocker_encrypt(2 * 1024 * 1024)
+# pyflocker_encrypt(4 * 1024 * 1024)
+# pyflocker_encrypt(8 * 1024 * 1024)
+# pyflocker_encrypt(16 * 1024 * 1024)
+# pyflocker_encrypt(32 * 1024 * 1024)
+# pyflocker_encrypt(64 * 1024 * 1024)
+# pyflocker_encrypt(128 * 1024 * 1024)
+# pyflocker_encrypt(256 * 1024 * 1024)
+# pyflocker_encrypt(512 * 1024 * 1024)
+# pyflocker_encrypt(1024 * 1024 * 1024)
 
-# path_in = "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# path_out = "/home/gnome/tmp/test.enc"
+# print("\n pyflocker_encrypt_file")
 # print("| Seconds |")
 # print("| ------- |")
-# copy_file(path_in)
+# pyflocker_encrypt_file(path_in, path_out)
+
+# path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# path_out = "/home/gnome/tmp/test.enc"
+# print("\n pyflocker_encrypt_file_locker")
+# print("| Seconds |")
+# print("| ------- |")
+# pyflocker_encrypt_file_locker(path_in, path_out)
+
+# path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
+# path_out = "/home/gnome/tmp/test.enc"
+# print("\n pyflocker_encrypt_file_chunks")
+# print("| MB    | Seconds |")
+# print("| ----- | ------- |")
+# pyflocker_encrypt_file_chunks(path_in, path_out)
+
+print("\n pyflocker_decrypt_into")
+print("| MB    | Seconds |")
+print("| ----- | ------- |")
+pyflocker_decrypt_into(32 * 1024)
+pyflocker_decrypt_into(64 * 1024)
+pyflocker_decrypt_into(128 * 1024)
+pyflocker_decrypt_into(256 * 1024)
+pyflocker_decrypt_into(512 * 1024)
+pyflocker_decrypt_into(1024 * 1024)
+pyflocker_decrypt_into(2 * 1024 * 1024)
+pyflocker_decrypt_into(4 * 1024 * 1024)
+pyflocker_decrypt_into(8 * 1024 * 1024)
+pyflocker_decrypt_into(16 * 1024 * 1024)
+pyflocker_decrypt_into(32 * 1024 * 1024)
+pyflocker_decrypt_into(64 * 1024 * 1024)
+pyflocker_decrypt_into(128 * 1024 * 1024)
+pyflocker_decrypt_into(256 * 1024 * 1024)
+pyflocker_decrypt_into(512 * 1024 * 1024)
+pyflocker_decrypt_into(1024 * 1024 * 1024)
+
+print("\n pyflocker_decrypt")
+print("| MB    | Seconds |")
+print("| ----- | ------- |")
+pyflocker_decrypt(32 * 1024)
+pyflocker_decrypt(64 * 1024)
+pyflocker_decrypt(128 * 1024)
+pyflocker_decrypt(256 * 1024)
+pyflocker_decrypt(512 * 1024)
+pyflocker_decrypt(1024 * 1024)
+pyflocker_decrypt(2 * 1024 * 1024)
+pyflocker_decrypt(4 * 1024 * 1024)
+pyflocker_decrypt(8 * 1024 * 1024)
+pyflocker_decrypt(16 * 1024 * 1024)
+pyflocker_decrypt(32 * 1024 * 1024)
+pyflocker_decrypt(64 * 1024 * 1024)
+pyflocker_decrypt(128 * 1024 * 1024)
+pyflocker_decrypt(256 * 1024 * 1024)
+pyflocker_decrypt(512 * 1024 * 1024)
+pyflocker_decrypt(1024 * 1024 * 1024)
+
+# print("\n cryptography_encrypt")
+# print("| MB    | Seconds |")
+# print("| ----- | ------- |")
+# cryptography_encrypt(32 * 1024)
+# cryptography_encrypt(64 * 1024)
+# cryptography_encrypt(128 * 1024)
+# cryptography_encrypt(256 * 1024)
+# cryptography_encrypt(512 * 1024)
+# cryptography_encrypt(1024 * 1024)
+# cryptography_encrypt(2 * 1024 * 1024)
+# cryptography_encrypt(4 * 1024 * 1024)
+# cryptography_encrypt(8 * 1024 * 1024)
+# cryptography_encrypt(16 * 1024 * 1024)
+# cryptography_encrypt(32 * 1024 * 1024)
+# cryptography_encrypt(64 * 1024 * 1024)
+# cryptography_encrypt(128 * 1024 * 1024)
+# cryptography_encrypt(256 * 1024 * 1024)
+# cryptography_encrypt(512 * 1024 * 1024)
+# cryptography_encrypt(1024 * 1024 * 1024)
