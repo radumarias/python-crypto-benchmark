@@ -1033,14 +1033,14 @@ def pyflocker_cryptography_rsa(path_in):
     silentremove("/tmp/test.dec")
 
 
-def encrypt(chunk_size):
+def encrypt(block_len):
     from pyflocker.ciphers import AES
     from pyflocker.ciphers.backends import Backends
 
     key = os.urandom(32)
 
-    buf = bytearray(chunk_size)
-    buf2 = bytearray(chunk_size + 1024)
+    buf = os.urandom(block_len)
+    buf2 = bytearray(block_len + 1024)
 
     deltas = []
     for _ in range(3):
@@ -1061,7 +1061,7 @@ def encrypt(chunk_size):
         deltas.append(delta.total_seconds())
         
     average = sum(deltas, 0) / len(deltas)
-    print(f"|{chunk_size/1024/1024} | {average:.5f}|")
+    print(f"|{block_len/1024/1024} | {average:.5f}|")
 
 
 def encrypt_file(path_in, chunk_size):
@@ -1190,32 +1190,32 @@ def copy_file(path_in):
 #     "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 
-# print("| MB    | Seconds |")
-# print("| -------- | ------- |")
-# encrypt(32 * 1024)
-# encrypt(64 * 1024)
-# encrypt(128 * 1024)
-# encrypt(256 * 1024)
-# encrypt(512 * 1024)
-# encrypt(1024 * 1024)
-# encrypt(2 * 1024 * 1024)
-# encrypt(4 * 1024 * 1024)
-# encrypt(8 * 1024 * 1024)
-# encrypt(16 * 1024 * 1024)
-# encrypt(32 * 1024 * 1024)
-# encrypt(64 * 1024 * 1024)
-# encrypt(128 * 1024 * 1024)
-# encrypt(256 * 1024 * 1024)
-# encrypt(512 * 1024 * 1024)
-# encrypt(1024 * 1024 * 1024)
-# encrypt(2 * 1024 * 1024 * 1024)
-# encrypt(4 * 1024 * 1024 * 1024)
-# encrypt(8 * 1024 * 1024 * 1024)
+print("| MB    | Seconds |")
+print("| ----- | ------- |")
+encrypt(32 * 1024)
+encrypt(64 * 1024)
+encrypt(128 * 1024)
+encrypt(256 * 1024)
+encrypt(512 * 1024)
+encrypt(1024 * 1024)
+encrypt(2 * 1024 * 1024)
+encrypt(4 * 1024 * 1024)
+encrypt(8 * 1024 * 1024)
+encrypt(16 * 1024 * 1024)
+encrypt(32 * 1024 * 1024)
+encrypt(64 * 1024 * 1024)
+encrypt(128 * 1024 * 1024)
+encrypt(256 * 1024 * 1024)
+encrypt(512 * 1024 * 1024)
+encrypt(1024 * 1024 * 1024)
+encrypt(2 * 1024 * 1024 * 1024)
+encrypt(4 * 1024 * 1024 * 1024)
+encrypt(8 * 1024 * 1024 * 1024)
 
 path_in = "/home/gnome/Downloads/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 print()
 print("| MB    | Seconds |")
-print("| -------- | ------- |")
+print("| ----- | ------- |")
 encrypt_file(path_in, 32 * 1024)
 encrypt_file(path_in, 64 * 1024)
 encrypt_file(path_in, 128 * 1024)
