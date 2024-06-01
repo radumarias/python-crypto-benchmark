@@ -1582,7 +1582,7 @@ sizes_mb = [
     2 * 1024,
     4 * 1024,
     8 * 1024,
-    16 * 1024,
+    # 16 * 1024,
 ]
 
 print("pyflocker_encrypt_into")
