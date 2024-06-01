@@ -4,6 +4,9 @@ import os
 import io
 import shutil
 import hashlib
+from pathlib import Path
+import concurrent.futures
+import functools
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
@@ -36,6 +39,57 @@ from pyflocker.ciphers import RSA
 from pyflocker import locker
 
 
+def get_file_size(file_path):
+    try:
+        size = os.path.getsize(file_path)
+        return size
+    except FileNotFoundError:
+        print(f"File {file_path} not found.")
+    except Exception as e:
+        print(f"Error retrieving size of file {file_path}: {e}")
+        return None
+
+
+def delete_file(path):
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        print(f"File {path} not found.")
+    except PermissionError:
+        print(f"Permission denied to delete {path}.")
+    except Exception as e:
+        print(f"Error deleting file {path}: {e}")
+
+
+def delete_dir(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    else:
+        print(f"Directory {path} does not exist.")
+
+
+def create_directory_in_home(dir_name):
+    # Get the user's home directory
+    home_dir = Path.home()
+
+    # Create the full path for the new directory
+    new_dir_path = home_dir / dir_name
+
+    # Create the directory
+    try:
+        new_dir_path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Error creating directory: {e}")
+
+    return new_dir_path.absolute().__str__()
+
+
+def create_file_with_size(file_path_str, size_in_bytes):
+    with open(file_path_str, "wb") as f:
+        for _ in range(size_in_bytes // 4096):
+            f.write(os.urandom(4096))
+
+
 def calculate_file_hash(file_path):
     hash_algo = hashlib.sha256()
     with open(file_path, "rb") as f:
@@ -48,13 +102,14 @@ def compare_files_by_hash(file1, file2):
     return calculate_file_hash(file1) == calculate_file_hash(file2)
 
 
-def read_file_in_chunks(file_path, buf_len=128 * 1024):
-    with open(file_path, "rb", buffering=buf_len) as file:
+def read_file_in_chunks(file_path, buf):
+    with open(file_path, "rb") as file:
+        buffered_reader = io.BufferedReader(file, buffer_size=len(buf))
         while True:
-            buf = file.read(buf_len)
-            if buf.__len__() == 0:
+            read = buffered_reader.readinto(buf)
+            if read == 0:
                 break
-            yield buf
+            yield read
 
 
 def silentremove(filename):
@@ -1024,22 +1079,23 @@ def pyflocker_cryptography_rsa(path_in):
     silentremove("/tmp/test.dec")
 
 
-def copy_file(path_in):
+def copy_file_shutil(path_in, path_out):
     deltas = []
-    for _ in range(3):
+    for _ in range(1):
         a = datetime.datetime.now()
 
-        silentremove("/home/gnome/tmp/test.enc")
-        shutil.copy(path_in, "/home/gnome/tmp/test.enc")
+        silentremove(path_out)
+        shutil.copy(path_in, path_out)
 
         b = datetime.datetime.now()
         delta = b - a
         deltas.append(delta.total_seconds())
 
-    silentremove("/home/gnome/tmp/test.enc")
+    silentremove(path_out)
 
     average = sum(deltas, 0) / len(deltas)
-    print(f"|{average:.5f}|")
+    filesize = get_file_size(path_in)
+    print(f"| {(filesize / 1024 / 1024):.5g} | {average:.5f} |")
 
 
 def pyflocker_encrypt_into(block_len):
@@ -1114,7 +1170,7 @@ def pyflocker_encrypt_file_locker(path_in, path_out):
 
 
 def pyflocker_encrypt_file_chunks(path_in, path_out):
-    chunk_len = 2 * 1024 * 1024
+    chunk_len = 256 * 1024
 
     key = os.urandom(32)
 
@@ -1127,7 +1183,7 @@ def pyflocker_encrypt_file_chunks(path_in, path_out):
         a = datetime.datetime.now()
 
         with open(path_out, "wb", buffering=chunk_len + 28) as file_out:
-            for plaintext in read_file_in_chunks(path_in, buf_len=chunk_len):
+            for read in read_file_in_chunks(path_in, ciphertext[:chunk_len]):
                 nonce = os.urandom(16)
                 cipher = AES.new(
                     True,
@@ -1136,10 +1192,10 @@ def pyflocker_encrypt_file_chunks(path_in, path_out):
                     nonce,
                     backend=Backends.CRYPTOGRAPHY,
                 )
-                cipher.update_into(plaintext, ciphertext)
+                cipher.update_into(ciphertext[:chunk_len], ciphertext)
                 cipher.finalize()
                 tag = cipher.calculate_tag()
-                file_out.write(ciphertext)
+                file_out.write(ciphertext[:read])
                 file_out.write(tag)
                 file_out.write(nonce)
             file_out.flush()
@@ -1151,7 +1207,58 @@ def pyflocker_encrypt_file_chunks(path_in, path_out):
     silentremove(path_out)
 
     average = sum(deltas, 0) / len(deltas)
-    print(f"| {average:.5f} |")
+    filesize = get_file_size(path_in)
+    print(f"| {(filesize / 1024 / 1024):.5g} | {average:.5f} |")
+
+
+def read_chunks(path_in, chunk_len):
+    with open(path_in, "rb") as file:
+        while True:
+            buf = file.read(chunk_len)
+            if not buf:
+                break
+            yield buf
+
+
+def write_chunk(path_out, chunk, offset):
+    with open(path_out, "r+b") as file_out:
+        file_out.seek(offset)
+        file_out.write(chunk)
+
+
+def copy_file_par(path_in, path_out):
+    chunk_len = 2 * 1024 * 1024  # 2 MB
+
+    if not os.path.exists(path_in):
+        print(f"Input file {path_in} does not exist.")
+        return
+
+    a = datetime.datetime.now()
+
+    # Create the output file and set its size to match the input file
+    input_size = os.path.getsize(path_in)
+    with open(path_out, "wb") as file_out:
+        file_out.truncate(input_size)
+
+    # Read and write chunks in parallel
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            offset = 0
+            for chunk in read_chunks(path_in, chunk_len):
+                future = executor.submit(write_chunk, path_out, chunk, offset)
+                futures.append(future)
+                offset += chunk_len
+
+            # Ensure all futures are completed
+            concurrent.futures.wait(futures)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    b = datetime.datetime.now()
+    delta = b - a
+    filesize = get_file_size(path_in)
+    print(f"| {(filesize / 1024 / 1024):.5g} | {delta.total_seconds():.5f} |")
 
 
 def pyflocker_decrypt_into(block_len):
@@ -1277,13 +1384,13 @@ def pyflocker_decrypt_file_chunks(path_in, path_out):
 
     key = os.urandom(32)
 
-    ciphertext = bytearray(chunk_len + 28)
+    buf = bytearray(chunk_len + 28)
 
     tmp = "/home/gnome/tmp/test.dec"
 
     silentremove(path_out)
     with open(path_out, "wb", buffering=chunk_len + 28) as file_out:
-        for plaintext in read_file_in_chunks(path_in, buf_len=chunk_len):
+        for read in read_file_in_chunks(path_in, buf[:chunk_len]):
             nonce = os.urandom(16)
             cipher = AES.new(
                 True,
@@ -1292,23 +1399,22 @@ def pyflocker_decrypt_file_chunks(path_in, path_out):
                 nonce,
                 backend=Backends.CRYPTOGRAPHY,
             )
-            cipher.update_into(plaintext, ciphertext)
+            cipher.update_into(buf[:read], buf)
             cipher.finalize()
             tag = cipher.calculate_tag()
-            file_out.write(ciphertext)
+            file_out.write(buf)
             file_out.write(tag)
             file_out.write(nonce)
         file_out.flush()
 
-    plaintext = bytearray(chunk_len + 1024)
     deltas = []
     for _ in range(3):
         a = datetime.datetime.now()
 
         with open(tmp, "wb", buffering=chunk_len) as file_out:
-            for ciphertext in read_file_in_chunks(path_in, buf_len=chunk_len + 28):
-                tag = ciphertext[-28:-12]
-                nonce = ciphertext[-16:]
+            for read in read_file_in_chunks(path_in, buf):
+                tag = bytes(buf[read - 28 : read - 28 + 16])
+                nonce = bytes(buf[read - 12 : read])
                 cipher = AES.new(
                     False,
                     key,
@@ -1316,9 +1422,9 @@ def pyflocker_decrypt_file_chunks(path_in, path_out):
                     nonce,
                     backend=Backends.CRYPTOGRAPHY,
                 )
-                cipher.update_into(ciphertext, plaintext)
+                cipher.update_into(buf[:read - 28], buf)
                 # cipher.finalize(tag)
-                file_out.write(plaintext)
+                file_out.write(buf[:read - 28])
             file_out.flush()
 
         b = datetime.datetime.now()
@@ -1330,7 +1436,35 @@ def pyflocker_decrypt_file_chunks(path_in, path_out):
     silentremove(tmp)
 
     average = sum(deltas, 0) / len(deltas)
-    print(f"| {average:.5f} |")
+    filesize = get_file_size(path_in)
+    print(f"| {(filesize / 1024 / 1024):.5g} | {average:.5f} |")
+
+def copy_file(fin, fout):
+    chunk_len = 256 * 1024
+    buf = bytearray(chunk_len)
+
+    silentremove(fout)
+
+    deltas = []
+    for _ in range(3):
+
+        a = datetime.datetime.now()
+
+        with open(fout, "wb", buffering=chunk_len) as file_out:
+            for read in read_file_in_chunks(fin, buf):
+                file_out.write(buf[:read])
+            file_out.flush()
+
+        b = datetime.datetime.now()
+        delta = b - a
+        deltas.append(delta.total_seconds())
+
+    silentremove(fout)
+
+    average = sum(deltas, 0) / len(deltas)
+    filesize = get_file_size(fin)
+    print(f"| {(filesize / 1024 / 1024):.5g} | {average:.5f} |")
+
 
 
 def cryptography_encrypt(block_len):
@@ -1427,6 +1561,30 @@ def cryptography_encrypt(block_len):
 #     "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
 # )
 
+tmp_dir = create_directory_in_home("rencrypt_tmp")
+sizes_mb = [
+    0.03125,
+    0.0625,
+    0.125,
+    0.25,
+    0.5,
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024,
+    # 2 * 1024,
+    # 4 * 1024,
+    # 8 * 1024,
+    # 16 * 1024,
+]
+
 print("pyflocker_encrypt_into")
 print("| MB    | Seconds |")
 print("| ----- | ------- |")
@@ -1474,12 +1632,14 @@ print("| Seconds |")
 print("| ------- |")
 pyflocker_encrypt_file_locker(path_in, path_out)
 
-path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-path_out = "/home/gnome/tmp/test.enc"
-print("\n pyflocker_encrypt_file_chunks")
-print("| Seconds |")
-print("| ------- |")
-pyflocker_encrypt_file_chunks(path_in, path_out)
+print("\n encrypt_file")
+print("| MB | Seconds |")
+print("| -- | ------- |")
+for size in sizes_mb:
+    file_path = f"{tmp_dir}/test_{size}M.raw"
+    create_file_with_size(file_path, int(size * 1024 * 1024))
+    pyflocker_encrypt_file_chunks(file_path, file_path + ".enc")
+    delete_file(file_path)
 
 print("\n pyflocker_decrypt_into")
 print("| MB    | Seconds |")
@@ -1521,19 +1681,14 @@ pyflocker_decrypt(256 * 1024 * 1024)
 pyflocker_decrypt(512 * 1024 * 1024)
 pyflocker_decrypt(1024 * 1024 * 1024)
 
-path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-path_out = "/home/gnome/tmp/test.enc"
-print("\n pyflocker_decrypt_file_locker")
-print("| Seconds |")
-print("| ------- |")
-pyflocker_decrypt_file_locker(path_in, path_out)
-
-path_in = "/home/gnome/tmp/Zero.Days.2016.720p.WEBRip.x264.AAC-ETRG.mp4"
-path_out = "/home/gnome/tmp/test.enc"
 print("\n pyflocker_decrypt_file_chunks")
-print("| Seconds |")
-print("| ------- |")
-pyflocker_decrypt_file_chunks(path_in, path_out)
+print("| MB | Seconds |")
+print("| -- | ------- |")
+for size in sizes_mb:
+    file_path = f"{tmp_dir}/test_{size}M.raw"
+    create_file_with_size(file_path, int(size * 1024 * 1024))
+    pyflocker_decrypt_file_chunks(file_path, file_path + ".enc")
+    delete_file(file_path)
 
 print("\n cryptography_encrypt")
 print("| MB    | Seconds |")
@@ -1554,3 +1709,5 @@ cryptography_encrypt(128 * 1024 * 1024)
 cryptography_encrypt(256 * 1024 * 1024)
 cryptography_encrypt(512 * 1024 * 1024)
 cryptography_encrypt(1024 * 1024 * 1024)
+
+delete_dir(tmp_dir)
