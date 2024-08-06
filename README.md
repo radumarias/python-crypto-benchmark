@@ -53,3 +53,12 @@ encrypt 871 MB/s
 |256.0 | 0.75242|
 |512.0 | 0.75465|
 |1024.0 | 0.77794|
+
+# Contribute
+
+Feel free to fork it, change and use it in any way that you want.
+If you build something interesting and feel like sharing pull requests are always appreciated.
+
+## How to contribute
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md).
